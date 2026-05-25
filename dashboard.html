@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WasteBin Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="dashboard-shell">
+    <header class="dashboard-hero">
+      <div>
+        <h1>WasteBin Dashboard</h1>
+        <p>ควบคุมรอบเกมและดูคะแนนผู้เล่น</p>
+      </div>
+      <a class="dashboard-link" href="index.html">Player Page</a>
+    </header>
+
+    <section class="dashboard-control-panel" aria-label="Game controls">
+      <div class="control-status">
+        <span id="game-status">Waiting</span>
+        <small>สถานะเกม</small>
+      </div>
+      <label>
+        จำนวนขยะ
+        <select id="dashboard-round-size">
+          <option value="8">8</option>
+          <option value="12" selected>12</option>
+          <option value="16">16</option>
+          <option value="24">24</option>
+        </select>
+      </label>
+      <button id="dashboard-clear" class="secondary-button" type="button">Clear Scores</button>
+      <button id="dashboard-start" type="button">Start Game</button>
+      <button id="dashboard-stop" class="secondary-button" type="button">Stop Game</button>
+    </section>
+
+    <section class="dashboard-panel standalone-dashboard" aria-labelledby="dashboard-title">
+      <div class="dashboard-heading">
+        <div>
+          <h2 id="dashboard-title">Scoreboard</h2>
+          <p>คะแนนจะอัปเดตเมื่อผู้เล่นจบรอบหรือหมดเวลา</p>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ชื่อ</th>
+            <th>คะแนนล่าสุด</th>
+            <th>คะแนนสูงสุด</th>
+            <th>รอบ</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-list"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
