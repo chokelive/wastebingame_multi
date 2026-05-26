@@ -44,16 +44,17 @@ function renderLeaderboard(leaderboard = lastState.leaderboard) {
   if (rows.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = 7;
     cell.textContent = "No scores yet";
     row.append(cell);
     els.leaderboardList.append(row);
     return;
   }
 
-  rows.forEach((entry) => {
+  rows.forEach((entry, index) => {
     const row = document.createElement("tr");
     [
+      index + 1,
       entry.name,
       entry.lastScore,
       entry.bestScore,

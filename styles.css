@@ -523,10 +523,31 @@ h2 {
   padding: 22px;
 }
 
-.dashboard-link {
+.dashboard-qr {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 150px;
+  padding: 10px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
   color: var(--green-dark);
+  background: #fff;
   font-weight: 700;
   text-decoration: none;
+}
+
+.dashboard-qr img {
+  width: 128px;
+  height: 128px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.dashboard-qr span {
+  font-size: 18px;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .dashboard-control-panel {
@@ -616,6 +637,13 @@ h2 {
 .dashboard-panel td {
   font-size: clamp(20px, 2.8vw, 38px);
   font-weight: 700;
+}
+
+.dashboard-panel th:first-child,
+.dashboard-panel td:first-child {
+  width: 64px;
+  color: var(--muted);
+  text-align: center;
 }
 
 @keyframes funny-pop {
