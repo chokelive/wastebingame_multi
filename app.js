@@ -30,6 +30,8 @@ const els = {
   playerName: document.querySelector("#player-name"),
   playerLabel: document.querySelector("#player-label"),
   waitingModal: document.querySelector("#waiting-modal"),
+  waitingTitle: document.querySelector("#waiting-title"),
+  waitingText: document.querySelector("#waiting-text"),
   wasteList: document.querySelector("#waste-list"),
   binList: document.querySelector("#bin-list"),
   wasteTemplate: document.querySelector("#waste-template"),
@@ -148,6 +150,20 @@ function setPlayEnabled(enabled, message = "Waiting for dashboard to start the g
   document.body.classList.toggle("is-waiting", !enabled);
   if (els.waitingModal) {
     els.waitingModal.hidden = enabled || !state.player;
+  }
+  if (!enabled) {
+    const gameAlreadyStarted = message.toLowerCase().includes("already started");
+    const connectionProblem = message.toLowerCase().includes("connection");
+    if (els.waitingTitle) {
+      els.waitingTitle.textContent = gameAlreadyStarted
+        ? "Game already running"
+        : connectionProblem
+          ? "Connecting to host"
+          : "Waiting for host";
+    }
+    if (els.waitingText) {
+      els.waitingText.textContent = message;
+    }
   }
   if (els.newGame) {
     els.newGame.disabled = !enabled;
