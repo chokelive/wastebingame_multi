@@ -7,8 +7,7 @@ const defaultState = {
     status: "waiting",
     roundId: null,
     roundSize: 12,
-    updatedAt: null,
-    activePlayerIds: []
+    updatedAt: null
   }
 };
 
@@ -84,8 +83,7 @@ async function readState() {
       leaderboard: Array.isArray(parsed.leaderboard) ? parsed.leaderboard : [],
       control: {
         ...cloneState(defaultState.control),
-        ...(parsed.control || {}),
-        activePlayerIds: Array.isArray(parsed.control?.activePlayerIds) ? parsed.control.activePlayerIds : []
+        ...(parsed.control || {})
       }
     };
   } catch (error) {
@@ -100,9 +98,9 @@ async function writeState(state) {
 
 function sortLeaderboard(rows) {
   return [...rows].sort((a, b) =>
-    b.bestScore - a.bestScore ||
+    new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0) ||
     b.lastScore - a.lastScore ||
-    new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)
+    b.bestScore - a.bestScore
   );
 }
 
@@ -142,12 +140,6 @@ module.exports = async function handler(request, response) {
         return;
       }
 
-      const activePlayerIds = Array.isArray(state.control.activePlayerIds) ? state.control.activePlayerIds : [];
-      if (state.control.status === "running" && !activePlayerIds.includes(playerId)) {
-        response.status(409).json({ error: "Game already started" });
-        return;
-      }
-
       upsertPlayer(state, playerId, body.name, now);
     }
 
@@ -155,12 +147,6 @@ module.exports = async function handler(request, response) {
       const playerId = String(body.playerId || "").slice(0, 80);
       if (!playerId) {
         response.status(400).json({ error: "playerId is required" });
-        return;
-      }
-
-      const activePlayerIds = Array.isArray(state.control.activePlayerIds) ? state.control.activePlayerIds : [];
-      if (state.control.status === "running" && !activePlayerIds.includes(playerId)) {
-        response.status(409).json({ error: "Player is not in the active game" });
         return;
       }
 
@@ -190,20 +176,13 @@ module.exports = async function handler(request, response) {
     }
 
     if (body.action === "control") {
-      const status = ["running", "stopped", "waiting"].includes(body.status) ? body.status : "waiting";
       state.control = {
-        status,
-        roundId: Date.now(),
-        roundSize: cleanScore(body.roundSize) || 12,
+        status: "waiting",
+        roundId: null,
+        roundSize: state.control.roundSize || 12,
         updatedAt: now,
-        activePlayerIds: status === "running"
-          ? state.players.map((entry) => entry.playerId)
-          : []
+        ignored: true
       };
-
-      if (status === "stopped") {
-        state.leaderboard = [];
-      }
     }
 
     if (body.action === "clear") {

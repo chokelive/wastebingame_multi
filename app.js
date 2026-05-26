@@ -4,9 +4,7 @@ const state = {
   selectedId: null,
   drag: null,
   player: null,
-  canPlay: false,
-  canJoin: true,
-  lastControlRoundId: null,
+  canPlay: true,
   scoreSubmitted: false,
   score: 0,
   correct: 0,
@@ -29,9 +27,6 @@ const els = {
   loginForm: document.querySelector("#login-form"),
   playerName: document.querySelector("#player-name"),
   playerLabel: document.querySelector("#player-label"),
-  waitingModal: document.querySelector("#waiting-modal"),
-  waitingTitle: document.querySelector("#waiting-title"),
-  waitingText: document.querySelector("#waiting-text"),
   wasteList: document.querySelector("#waste-list"),
   binList: document.querySelector("#bin-list"),
   wasteTemplate: document.querySelector("#waste-template"),
@@ -72,24 +67,17 @@ function isMobilePlayer() {
   return window.matchMedia("(pointer: coarse), (max-width: 900px)").matches;
 }
 
-function getOrCreatePlayerId() {
-  const key = "wastebin-player-id";
-  let playerId = localStorage.getItem(key);
-  if (!playerId) {
-    playerId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-    localStorage.setItem(key, playerId);
-  }
-  return playerId;
+function createPlayerId() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 }
 
 function setPlayer(name) {
   const cleanName = String(name || "").replace(/\s+/g, " ").trim().slice(0, 32) || "Player";
   state.player = {
-    id: getOrCreatePlayerId(),
+    id: createPlayerId(),
     name: cleanName,
     tracked: true
   };
-  localStorage.setItem("wastebin-player-name", cleanName);
   if (els.playerLabel) {
     els.playerLabel.textContent = `Player: ${cleanName}`;
   }
@@ -113,7 +101,6 @@ async function registerPlayer() {
       return false;
     }
 
-    state.canJoin = true;
     return true;
   } catch (error) {
     console.warn("Player could not be registered", error);
@@ -122,49 +109,14 @@ async function registerPlayer() {
 }
 
 function setupPlayerLogin() {
-  const savedName = localStorage.getItem("wastebin-player-name");
-  if (savedName) {
-    setPlayer(savedName);
-    return;
-  }
-
-  if (!isMobilePlayer()) {
-    state.player = {
-      id: "desktop",
-      name: "Desktop",
-      tracked: false
-    };
-    if (els.playerLabel) {
-      els.playerLabel.textContent = "";
-    }
-    return;
-  }
-
   els.loginModal.hidden = false;
   window.setTimeout(() => els.playerName?.focus(), 0);
 }
 
-function setPlayEnabled(enabled, message = "Waiting for dashboard to start the game.") {
+function setPlayEnabled(enabled) {
   const changed = state.canPlay !== enabled;
   state.canPlay = enabled;
   document.body.classList.toggle("is-waiting", !enabled);
-  if (els.waitingModal) {
-    els.waitingModal.hidden = enabled || !state.player;
-  }
-  if (!enabled) {
-    const gameAlreadyStarted = message.toLowerCase().includes("already started");
-    const connectionProblem = message.toLowerCase().includes("connection");
-    if (els.waitingTitle) {
-      els.waitingTitle.textContent = gameAlreadyStarted
-        ? "Game already running"
-        : connectionProblem
-          ? "Connecting to host"
-          : "Waiting for host";
-    }
-    if (els.waitingText) {
-      els.waitingText.textContent = message;
-    }
-  }
   if (els.newGame) {
     els.newGame.disabled = !enabled;
   }
@@ -174,7 +126,6 @@ function setPlayEnabled(enabled, message = "Waiting for dashboard to start the g
   if (!enabled) {
     cleanupPointerDrag();
     stopMusic();
-    setMessage(message, "neutral");
   }
   if (changed && state.dataset) {
     renderBins();
@@ -202,47 +153,6 @@ async function submitScore() {
   } catch (error) {
     state.scoreSubmitted = false;
     console.warn("Score could not be submitted", error);
-  }
-}
-
-async function syncGameControl() {
-  try {
-    const response = await fetch("/api/state", { cache: "no-store" });
-    if (!response.ok) {
-      setPlayEnabled(false, "Waiting for dashboard connection.");
-      return;
-    }
-
-    const payload = await response.json();
-    const control = payload.control;
-    const activePlayerIds = Array.isArray(control?.activePlayerIds) ? control.activePlayerIds : [];
-    const isActivePlayer = !state.player?.tracked || activePlayerIds.includes(state.player.id);
-
-    if (control?.status === "running" && state.player?.tracked && !isActivePlayer) {
-      state.canJoin = false;
-      els.loginModal.hidden = true;
-      setPlayEnabled(false, "Game already started. Please wait for the next round.");
-      return;
-    }
-
-    if (!control || control.status !== "running") {
-      state.canJoin = true;
-      setPlayEnabled(false, "Waiting for dashboard to start the game.");
-      return;
-    }
-
-    setPlayEnabled(true);
-    if (control.roundId === state.lastControlRoundId) {
-      return;
-    }
-    state.lastControlRoundId = control.roundId;
-    if (els.roundSize && control.roundSize) {
-      els.roundSize.value = String(control.roundSize);
-    }
-    startNewGame();
-  } catch (error) {
-    setPlayEnabled(false, "Waiting for dashboard connection.");
-    console.warn("Game control could not be synced", error);
   }
 }
 
@@ -605,7 +515,7 @@ function renderBins() {
 
 function startNewGame() {
   if (!state.canPlay) {
-    setPlayEnabled(false, "Waiting for dashboard to start the game.");
+    setPlayEnabled(false);
     return;
   }
 
@@ -653,12 +563,9 @@ async function boot() {
     setupPlayerLogin();
     state.dataset = await loadDataset();
     validateDataset(state.dataset);
-    await registerPlayer();
     renderBins();
     updateScoreboard();
-    setPlayEnabled(false);
-    syncGameControl();
-    window.setInterval(syncGameControl, 2000);
+    setPlayEnabled(true);
   } catch (error) {
     setMessage(error.message, "wrong");
     console.error(error);
@@ -669,16 +576,10 @@ els.loginForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   setPlayer(els.playerName.value);
   registerPlayer().then((accepted) => {
-    if (!accepted) {
-      state.canJoin = false;
-      els.loginModal.hidden = true;
-      setPlayEnabled(false, "Game already started. Please wait for the next round.");
-      return;
-    }
-
     els.loginModal.hidden = true;
     requestLandscapeMode();
-    setPlayEnabled(state.canPlay);
+    setPlayEnabled(true);
+    startNewGame();
   });
 });
 els.newGame.addEventListener("click", () => {
