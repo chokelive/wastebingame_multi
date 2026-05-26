@@ -349,15 +349,7 @@ function playThrowEffect(isCorrect) {
 }
 
 async function requestLandscapeMode() {
-  if (!window.matchMedia("(max-width: 900px)").matches || !screen.orientation?.lock) {
-    return;
-  }
-
-  try {
-    await screen.orientation.lock("landscape");
-  } catch (error) {
-    // Some mobile browsers only allow orientation lock in fullscreen or installed apps.
-  }
+  return;
 }
 
 function setMessage(text, type = "neutral") {

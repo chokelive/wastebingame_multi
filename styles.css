@@ -838,32 +838,54 @@ h2 {
 }
 
 @media (max-width: 900px) and (orientation: portrait) {
-  .orientation-notice {
-    position: fixed;
-    inset: 0;
-    z-index: 2000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 12px;
-    padding: 28px;
-    text-align: center;
-    color: #155e46;
-    background:
-      radial-gradient(circle at top left, rgba(245, 182, 66, 0.32), transparent 36%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(234, 248, 255, 0.98));
+  body {
+    align-items: stretch;
   }
 
-  .orientation-notice strong {
-    font-size: 26px;
-    line-height: 1.1;
+  .game-shell {
+    min-height: 100svh;
+    padding: 12px;
   }
 
-  .orientation-notice span {
-    max-width: 260px;
-    color: var(--muted);
-    font-weight: 700;
+  .play-area {
+    gap: 10px;
+  }
+
+  .bin-panel,
+  .waste-panel {
+    padding: 10px;
+  }
+
+  .waste-panel {
+    min-height: 34vh;
+  }
+
+  .bin-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .bin-card {
+    grid-template-rows: 68px auto;
+    min-height: 106px;
+    padding: 5px;
+  }
+
+  .bin-card span {
+    white-space: normal;
+    font-size: 11px;
+    line-height: 1.15;
+  }
+
+  .waste-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .waste-card {
+    grid-template-rows: 76px;
+    min-height: 98px;
+    padding: 7px;
   }
 }
 
@@ -977,11 +999,15 @@ h2 {
   .bin-grid {
     grid-auto-flow: row;
     grid-auto-columns: initial;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
     overflow-x: visible;
   }
 
+  .waste-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .bin-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
   }
 
