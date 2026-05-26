@@ -2,7 +2,6 @@ const els = {
   leaderboardList: document.querySelector("#leaderboard-list"),
   status: document.querySelector("#game-status"),
   roundSize: document.querySelector("#dashboard-round-size"),
-  clear: document.querySelector("#dashboard-clear"),
   start: document.querySelector("#dashboard-start"),
   stop: document.querySelector("#dashboard-stop"),
   qrOpen: document.querySelector("#dashboard-qr-open"),
@@ -95,14 +94,6 @@ async function writeControl(status) {
 
 els.start.addEventListener("click", () => writeControl("running").catch(console.warn));
 els.stop.addEventListener("click", () => writeControl("stopped").catch(console.warn));
-els.clear.addEventListener("click", async () => {
-  try {
-    lastState = await api("clear");
-    renderLeaderboard(lastState.leaderboard);
-  } catch (error) {
-    console.warn(error);
-  }
-});
 els.qrOpen.addEventListener("click", () => {
   els.qrModal.hidden = false;
   els.qrClose.focus();

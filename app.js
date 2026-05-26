@@ -5,6 +5,7 @@ const state = {
   drag: null,
   player: null,
   canPlay: false,
+  canJoin: true,
   lastControlRoundId: null,
   scoreSubmitted: false,
   score: 0,
@@ -92,6 +93,32 @@ function setPlayer(name) {
   }
 }
 
+async function registerPlayer() {
+  if (!state.player?.tracked) return true;
+
+  try {
+    const response = await fetch("/api/state", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "join",
+        playerId: state.player.id,
+        name: state.player.name
+      })
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    state.canJoin = true;
+    return true;
+  } catch (error) {
+    console.warn("Player could not be registered", error);
+    return false;
+  }
+}
+
 function setupPlayerLogin() {
   const savedName = localStorage.getItem("wastebin-player-name");
   if (savedName) {
@@ -172,7 +199,18 @@ async function syncGameControl() {
 
     const payload = await response.json();
     const control = payload.control;
+    const activePlayerIds = Array.isArray(control?.activePlayerIds) ? control.activePlayerIds : [];
+    const isActivePlayer = !state.player?.tracked || activePlayerIds.includes(state.player.id);
+
+    if (control?.status === "running" && state.player?.tracked && !isActivePlayer) {
+      state.canJoin = false;
+      els.loginModal.hidden = true;
+      setPlayEnabled(false, "Game already started. Please wait for the next round.");
+      return;
+    }
+
     if (!control || control.status !== "running") {
+      state.canJoin = true;
       setPlayEnabled(false, "Waiting for dashboard to start the game.");
       return;
     }
@@ -607,6 +645,7 @@ async function boot() {
     setupPlayerLogin();
     state.dataset = await loadDataset();
     validateDataset(state.dataset);
+    await registerPlayer();
     renderBins();
     updateScoreboard();
     setPlayEnabled(false);
@@ -621,9 +660,18 @@ async function boot() {
 els.loginForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   setPlayer(els.playerName.value);
-  els.loginModal.hidden = true;
-  requestLandscapeMode();
-  setPlayEnabled(state.canPlay);
+  registerPlayer().then((accepted) => {
+    if (!accepted) {
+      state.canJoin = false;
+      els.loginModal.hidden = true;
+      setPlayEnabled(false, "Game already started. Please wait for the next round.");
+      return;
+    }
+
+    els.loginModal.hidden = true;
+    requestLandscapeMode();
+    setPlayEnabled(state.canPlay);
+  });
 });
 els.newGame.addEventListener("click", () => {
   if (!state.canPlay) {

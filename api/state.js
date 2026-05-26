@@ -1,12 +1,14 @@
 const STORE_KEY = "wastebin:state";
 
 const defaultState = {
+  players: [],
   leaderboard: [],
   control: {
     status: "waiting",
     roundId: null,
     roundSize: 12,
-    updatedAt: null
+    updatedAt: null,
+    activePlayerIds: []
   }
 };
 
@@ -23,6 +25,23 @@ function cleanName(value) {
 function cleanScore(value) {
   const score = Number.parseInt(value, 10);
   return Number.isFinite(score) ? score : 0;
+}
+
+function upsertPlayer(state, playerId, name, now) {
+  const existing = state.players.find((entry) => entry.playerId === playerId);
+  if (existing) {
+    existing.name = cleanName(name || existing.name);
+    existing.updatedAt = now;
+    return existing;
+  }
+
+  const player = {
+    playerId,
+    name: cleanName(name),
+    updatedAt: now
+  };
+  state.players.push(player);
+  return player;
 }
 
 async function redis(command, ...args) {
@@ -57,7 +76,18 @@ async function readState() {
   }
 
   try {
-    return { ...cloneState(defaultState), ...JSON.parse(stored) };
+    const parsed = JSON.parse(stored);
+    return {
+      ...cloneState(defaultState),
+      ...parsed,
+      players: Array.isArray(parsed.players) ? parsed.players : [],
+      leaderboard: Array.isArray(parsed.leaderboard) ? parsed.leaderboard : [],
+      control: {
+        ...cloneState(defaultState.control),
+        ...(parsed.control || {}),
+        activePlayerIds: Array.isArray(parsed.control?.activePlayerIds) ? parsed.control.activePlayerIds : []
+      }
+    };
   } catch (error) {
     return cloneState(defaultState);
   }
@@ -105,6 +135,22 @@ module.exports = async function handler(request, response) {
     const body = typeof request.body === "object" ? request.body : JSON.parse(request.body || "{}");
     const now = new Date().toISOString();
 
+    if (body.action === "join") {
+      const playerId = String(body.playerId || "").slice(0, 80);
+      if (!playerId) {
+        response.status(400).json({ error: "playerId is required" });
+        return;
+      }
+
+      const activePlayerIds = Array.isArray(state.control.activePlayerIds) ? state.control.activePlayerIds : [];
+      if (state.control.status === "running" && !activePlayerIds.includes(playerId)) {
+        response.status(409).json({ error: "Game already started" });
+        return;
+      }
+
+      upsertPlayer(state, playerId, body.name, now);
+    }
+
     if (body.action === "score") {
       const playerId = String(body.playerId || "").slice(0, 80);
       if (!playerId) {
@@ -112,6 +158,13 @@ module.exports = async function handler(request, response) {
         return;
       }
 
+      const activePlayerIds = Array.isArray(state.control.activePlayerIds) ? state.control.activePlayerIds : [];
+      if (state.control.status === "running" && !activePlayerIds.includes(playerId)) {
+        response.status(409).json({ error: "Player is not in the active game" });
+        return;
+      }
+
+      upsertPlayer(state, playerId, body.name, now);
       const score = cleanScore(body.score);
       const existing = state.leaderboard.find((entry) => entry.playerId === playerId);
       if (existing) {
@@ -137,12 +190,20 @@ module.exports = async function handler(request, response) {
     }
 
     if (body.action === "control") {
+      const status = ["running", "stopped", "waiting"].includes(body.status) ? body.status : "waiting";
       state.control = {
-        status: ["running", "stopped", "waiting"].includes(body.status) ? body.status : "waiting",
+        status,
         roundId: Date.now(),
         roundSize: cleanScore(body.roundSize) || 12,
-        updatedAt: now
+        updatedAt: now,
+        activePlayerIds: status === "running"
+          ? state.players.map((entry) => entry.playerId)
+          : []
       };
+
+      if (status === "stopped") {
+        state.leaderboard = [];
+      }
     }
 
     if (body.action === "clear") {
