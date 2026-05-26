@@ -4,7 +4,10 @@ const els = {
   roundSize: document.querySelector("#dashboard-round-size"),
   clear: document.querySelector("#dashboard-clear"),
   start: document.querySelector("#dashboard-start"),
-  stop: document.querySelector("#dashboard-stop")
+  stop: document.querySelector("#dashboard-stop"),
+  qrOpen: document.querySelector("#dashboard-qr-open"),
+  qrModal: document.querySelector("#dashboard-qr-modal"),
+  qrClose: document.querySelector("#dashboard-qr-close")
 };
 
 let lastState = {
@@ -98,6 +101,26 @@ els.clear.addEventListener("click", async () => {
     renderLeaderboard(lastState.leaderboard);
   } catch (error) {
     console.warn(error);
+  }
+});
+els.qrOpen.addEventListener("click", () => {
+  els.qrModal.hidden = false;
+  els.qrClose.focus();
+});
+els.qrClose.addEventListener("click", () => {
+  els.qrModal.hidden = true;
+  els.qrOpen.focus();
+});
+els.qrModal.addEventListener("click", (event) => {
+  if (event.target === els.qrModal) {
+    els.qrModal.hidden = true;
+    els.qrOpen.focus();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !els.qrModal.hidden) {
+    els.qrModal.hidden = true;
+    els.qrOpen.focus();
   }
 });
 

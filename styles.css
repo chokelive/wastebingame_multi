@@ -533,6 +533,8 @@ h2 {
   border-radius: 8px;
   color: var(--green-dark);
   background: #fff;
+  cursor: pointer;
+  font: inherit;
   font-weight: 700;
   text-decoration: none;
 }
@@ -548,6 +550,15 @@ h2 {
   font-size: 18px;
   line-height: 1.1;
   text-align: center;
+}
+
+.dashboard-qr-modal-card {
+  width: min(92vw, 620px);
+}
+
+.dashboard-qr-modal-card img {
+  width: min(76vw, 500px);
+  height: min(76vw, 500px);
 }
 
 .dashboard-control-panel {

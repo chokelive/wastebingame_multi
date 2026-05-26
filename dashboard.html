@@ -13,10 +13,10 @@
         <h1>WasteBin Dashboard</h1>
         <p>Central TV scoreboard for mobile players</p>
       </div>
-      <a class="dashboard-qr" href="index.html" aria-label="Open player page">
+      <button id="dashboard-qr-open" class="dashboard-qr" type="button" aria-label="Open large QR code">
         <img src="qr.png" alt="QR code for mobile players">
         <span>Scan to play</span>
-      </a>
+      </button>
     </header>
 
     <section class="dashboard-control-panel" aria-label="Game controls">
@@ -61,6 +61,14 @@
       </table>
     </section>
   </main>
+
+  <div id="dashboard-qr-modal" class="qr-modal" hidden>
+    <div class="qr-modal-card dashboard-qr-modal-card" role="dialog" aria-modal="true" aria-label="Large QR code for mobile players">
+      <button id="dashboard-qr-close" class="qr-close" type="button" aria-label="Close">x</button>
+      <img src="qr.png" alt="QR code for mobile players">
+      <span>Scan to play</span>
+    </div>
+  </div>
 
   <script src="dashboard.js"></script>
 </body>
