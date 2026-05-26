@@ -233,6 +233,42 @@ select {
   font-weight: 700;
 }
 
+.waiting-modal[hidden] {
+  display: none;
+}
+
+.waiting-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(20, 35, 45, 0.64);
+}
+
+.waiting-card {
+  display: grid;
+  gap: 10px;
+  width: min(92vw, 420px);
+  padding: 26px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 52px rgba(20, 35, 45, 0.3);
+  text-align: center;
+}
+
+.waiting-card p {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.is-waiting .waste-card,
+.is-waiting .bin-card {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 h1,
 h2,
 p {

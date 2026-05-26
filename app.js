@@ -4,6 +4,7 @@ const state = {
   selectedId: null,
   drag: null,
   player: null,
+  canPlay: false,
   lastControlRoundId: null,
   scoreSubmitted: false,
   score: 0,
@@ -27,6 +28,7 @@ const els = {
   loginForm: document.querySelector("#login-form"),
   playerName: document.querySelector("#player-name"),
   playerLabel: document.querySelector("#player-label"),
+  waitingModal: document.querySelector("#waiting-modal"),
   wasteList: document.querySelector("#waste-list"),
   binList: document.querySelector("#bin-list"),
   wasteTemplate: document.querySelector("#waste-template"),
@@ -113,6 +115,30 @@ function setupPlayerLogin() {
   window.setTimeout(() => els.playerName?.focus(), 0);
 }
 
+function setPlayEnabled(enabled, message = "Waiting for dashboard to start the game.") {
+  const changed = state.canPlay !== enabled;
+  state.canPlay = enabled;
+  document.body.classList.toggle("is-waiting", !enabled);
+  if (els.waitingModal) {
+    els.waitingModal.hidden = enabled || !state.player;
+  }
+  if (els.newGame) {
+    els.newGame.disabled = !enabled;
+  }
+  if (els.roundSize) {
+    els.roundSize.disabled = !enabled;
+  }
+  if (!enabled) {
+    cleanupPointerDrag();
+    stopMusic();
+    setMessage(message, "neutral");
+  }
+  if (changed && state.dataset) {
+    renderBins();
+    renderWaste();
+  }
+}
+
 async function submitScore() {
   if (state.scoreSubmitted || !state.player?.tracked) return;
 
@@ -139,20 +165,29 @@ async function submitScore() {
 async function syncGameControl() {
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
-    if (!response.ok) return;
-
-    const payload = await response.json();
-    const control = payload.control;
-    if (!control || control.status !== "running" || control.roundId === state.lastControlRoundId) {
+    if (!response.ok) {
+      setPlayEnabled(false, "Waiting for dashboard connection.");
       return;
     }
 
+    const payload = await response.json();
+    const control = payload.control;
+    if (!control || control.status !== "running") {
+      setPlayEnabled(false, "Waiting for dashboard to start the game.");
+      return;
+    }
+
+    setPlayEnabled(true);
+    if (control.roundId === state.lastControlRoundId) {
+      return;
+    }
     state.lastControlRoundId = control.roundId;
     if (els.roundSize && control.roundSize) {
       els.roundSize.value = String(control.roundSize);
     }
     startNewGame();
   } catch (error) {
+    setPlayEnabled(false, "Waiting for dashboard connection.");
     console.warn("Game control could not be synced", error);
   }
 }
@@ -330,17 +365,23 @@ function renderWaste() {
     node.classList.toggle("sorted", item.sorted);
     node.classList.toggle("selected", state.selectedId === item.id);
     node.draggable = !item.sorted;
+    node.disabled = !state.canPlay;
     image.src = item.path;
     image.alt = item.name;
     label.textContent = item.name;
 
     node.addEventListener("click", () => {
+      if (!state.canPlay) return;
       if (item.sorted) return;
       state.selectedId = state.selectedId === item.id ? null : item.id;
       renderWaste();
     });
 
     node.addEventListener("dragstart", (event) => {
+      if (!state.canPlay) {
+        event.preventDefault();
+        return;
+      }
       event.dataTransfer.setData("text/plain", item.id);
       event.dataTransfer.effectAllowed = "move";
       state.selectedId = item.id;
@@ -356,7 +397,7 @@ function renderWaste() {
 }
 
 function beginPointerDrag(event, item, node) {
-  if (item.sorted || event.button > 0) return;
+  if (!state.canPlay || item.sorted || event.button > 0) return;
   startMusic();
   requestLandscapeMode();
 
@@ -446,6 +487,11 @@ function flashBin(bin, className) {
 }
 
 function sortedItemById(itemId, categoryId, binNode) {
+  if (!state.canPlay) {
+    setMessage("Waiting for dashboard to start the game.", "neutral");
+    return;
+  }
+
   const item = state.roundItems.find((entry) => entry.id === itemId);
   if (!item || item.sorted) return;
 
@@ -478,6 +524,7 @@ function renderBins() {
     const label = node.querySelector("span");
 
     node.dataset.categoryId = category.id;
+    node.disabled = !state.canPlay;
     image.src = category.binImage;
     image.alt = `ถัง${categoryDisplayName(category.name)}`;
     label.textContent = categoryDisplayName(category.name);
@@ -511,6 +558,11 @@ function renderBins() {
 }
 
 function startNewGame() {
+  if (!state.canPlay) {
+    setPlayEnabled(false, "Waiting for dashboard to start the game.");
+    return;
+  }
+
   cleanupPointerDrag();
   if (audio.context) {
     startMusic();
@@ -555,7 +607,9 @@ async function boot() {
     setupPlayerLogin();
     state.dataset = await loadDataset();
     validateDataset(state.dataset);
-    startNewGame();
+    renderBins();
+    updateScoreboard();
+    setPlayEnabled(false);
     syncGameControl();
     window.setInterval(syncGameControl, 2000);
   } catch (error) {
@@ -568,15 +622,23 @@ els.loginForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   setPlayer(els.playerName.value);
   els.loginModal.hidden = true;
-  startMusic();
   requestLandscapeMode();
+  setPlayEnabled(state.canPlay);
 });
 els.newGame.addEventListener("click", () => {
+  if (!state.canPlay) {
+    setPlayEnabled(false);
+    return;
+  }
   startMusic();
   requestLandscapeMode();
   startNewGame();
 });
 els.roundSize.addEventListener("change", () => {
+  if (!state.canPlay) {
+    setPlayEnabled(false);
+    return;
+  }
   startMusic();
   requestLandscapeMode();
   startNewGame();
