@@ -13,25 +13,20 @@
     <span>เกมนี้เล่นได้ดีที่สุดในแนวนอน</span>
   </aside>
 
-  <section id="start-screen" class="start-screen" aria-labelledby="start-title">
-    <form id="player-form" class="player-form">
-      <h1 id="start-title">WasteBin</h1>
-      <p>ใส่ชื่อก่อนเริ่มเกม</p>
-      <label>
-        ชื่อผู้เล่น
-        <input id="player-name" name="player-name" type="text" maxlength="24" autocomplete="name" required>
-      </label>
-      <button type="submit">เข้าเกม</button>
-    </form>
-  </section>
-
-  <main class="game-shell" hidden>
+  <main class="game-shell">
     <header class="topbar">
       <div>
         <h1>ภารกิจคัดแยกขยะ WasteBin</h1>
         <p>ลากขยะให้ลงถังที่ถูกต้อง แล้วสะสมคะแนนกันเลย</p>
+        <p id="player-label" class="player-label"></p>
       </div>
-      <section class="scoreboard" aria-label="คะแนน">
+      <div class="topbar-tools">
+        <button id="qr-open" class="desktop-qr" type="button" aria-label="เปิด QR Code ขนาดใหญ่">
+          <img src="qr.png" alt="QR Code สำหรับเล่นบนมือถือ">
+          <span>สแกนเพื่อเล่นบนมือถือ</span>
+        </button>
+
+        <section class="scoreboard" aria-label="คะแนน">
         <div>
           <span id="score">0</span>
           <small>คะแนน</small>
@@ -48,16 +43,13 @@
           <span id="remaining">0</span>
           <small>เหลือ</small>
         </div>
-        <div>
-          <span id="timer">20</span>
-          <small>วินาที</small>
-        </div>
-      </section>
+        </section>
+      </div>
     </header>
 
-    <section class="controls player-statusbar" aria-label="Game status">
-      <span class="waiting-label">ควบคุมเกมจากหน้า Dashboard</span>
-      <label hidden>
+    <section class="controls" aria-label="ปุ่มควบคุมเกม">
+      <button id="new-game" type="button">เริ่มรอบใหม่</button>
+      <label>
         จำนวนขยะ
         <select id="round-size">
           <option value="8">8</option>
@@ -96,6 +88,25 @@
       <span></span>
     </button>
   </template>
+
+  <div id="qr-modal" class="qr-modal" hidden>
+    <div class="qr-modal-card" role="dialog" aria-modal="true" aria-label="QR Code สำหรับเล่นบนมือถือ">
+      <button id="qr-close" class="qr-close" type="button" aria-label="ปิด">×</button>
+      <img src="qr.png" alt="QR Code สำหรับเล่นบนมือถือ">
+      <span>สแกนเพื่อเล่นบนมือถือ</span>
+    </div>
+  </div>
+
+  <div id="login-modal" class="login-modal" hidden>
+    <form id="login-form" class="login-card">
+      <h2>Player Login</h2>
+      <label>
+        Name
+        <input id="player-name" name="player-name" type="text" maxlength="32" autocomplete="nickname" required>
+      </label>
+      <button type="submit">Start Playing</button>
+    </form>
+  </div>
 
   <script src="app.js"></script>
 </body>

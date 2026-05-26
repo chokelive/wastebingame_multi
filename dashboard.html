@@ -11,7 +11,7 @@
     <header class="dashboard-hero">
       <div>
         <h1>WasteBin Dashboard</h1>
-        <p>ควบคุมรอบเกมและดูคะแนนผู้เล่น</p>
+        <p>Central TV scoreboard for mobile players</p>
       </div>
       <a class="dashboard-link" href="index.html">Player Page</a>
     </header>
@@ -19,10 +19,10 @@
     <section class="dashboard-control-panel" aria-label="Game controls">
       <div class="control-status">
         <span id="game-status">Waiting</span>
-        <small>สถานะเกม</small>
+        <small>Game status</small>
       </div>
       <label>
-        จำนวนขยะ
+        Items
         <select id="dashboard-round-size">
           <option value="8">8</option>
           <option value="12" selected>12</option>
@@ -39,16 +39,18 @@
       <div class="dashboard-heading">
         <div>
           <h2 id="dashboard-title">Scoreboard</h2>
-          <p>คะแนนจะอัปเดตเมื่อผู้เล่นจบรอบหรือหมดเวลา</p>
+          <p>Scores update automatically when each player finishes a round.</p>
         </div>
       </div>
       <table>
         <thead>
           <tr>
-            <th>ชื่อ</th>
-            <th>คะแนนล่าสุด</th>
-            <th>คะแนนสูงสุด</th>
-            <th>รอบ</th>
+            <th>Name</th>
+            <th>Last Score</th>
+            <th>Best Score</th>
+            <th>Correct</th>
+            <th>Wrong</th>
+            <th>Rounds</th>
           </tr>
         </thead>
         <tbody id="leaderboard-list"></tbody>

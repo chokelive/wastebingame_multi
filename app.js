@@ -3,35 +3,30 @@ const state = {
   roundItems: [],
   selectedId: null,
   drag: null,
-  currentUser: "",
-  leaderboard: [],
-  timeLeft: 20,
-  timerId: null,
+  player: null,
   lastControlRoundId: null,
-  roundActive: false,
-  roundSaved: false,
+  scoreSubmitted: false,
   score: 0,
   correct: 0,
   wrong: 0
 };
 
 const els = {
-  startScreen: document.querySelector("#start-screen"),
-  gameShell: document.querySelector(".game-shell"),
-  playerForm: document.querySelector("#player-form"),
-  playerName: document.querySelector("#player-name"),
-  currentPlayer: document.querySelector("#current-player"),
-  leaderboardList: document.querySelector("#leaderboard-list"),
   score: document.querySelector("#score"),
   correct: document.querySelector("#correct"),
   wrong: document.querySelector("#wrong"),
   remaining: document.querySelector("#remaining"),
-  timer: document.querySelector("#timer"),
-  dashboardTimer: document.querySelector("#dashboard-timer"),
   message: document.querySelector("#message"),
   mobileMessage: document.querySelector("#mobile-message"),
   roundSize: document.querySelector("#round-size"),
   newGame: document.querySelector("#new-game"),
+  qrOpen: document.querySelector("#qr-open"),
+  qrModal: document.querySelector("#qr-modal"),
+  qrClose: document.querySelector("#qr-close"),
+  loginModal: document.querySelector("#login-modal"),
+  loginForm: document.querySelector("#login-form"),
+  playerName: document.querySelector("#player-name"),
+  playerLabel: document.querySelector("#player-label"),
   wasteList: document.querySelector("#waste-list"),
   binList: document.querySelector("#bin-list"),
   wasteTemplate: document.querySelector("#waste-template"),
@@ -59,9 +54,6 @@ const audio = {
 };
 
 const musicNotes = [392, 494, 587, 494, 440, 523, 659, 523];
-const leaderboardKey = "wastebin-leaderboard";
-const gameControlKey = "wastebin-game-control";
-const roundSeconds = 20;
 
 async function loadDataset() {
   const response = await fetch("dataset.json", { cache: "no-store" });
@@ -69,6 +61,100 @@ async function loadDataset() {
     throw new Error("dataset.json could not be loaded");
   }
   return response.json();
+}
+
+function isMobilePlayer() {
+  return window.matchMedia("(pointer: coarse), (max-width: 900px)").matches;
+}
+
+function getOrCreatePlayerId() {
+  const key = "wastebin-player-id";
+  let playerId = localStorage.getItem(key);
+  if (!playerId) {
+    playerId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    localStorage.setItem(key, playerId);
+  }
+  return playerId;
+}
+
+function setPlayer(name) {
+  const cleanName = String(name || "").replace(/\s+/g, " ").trim().slice(0, 32) || "Player";
+  state.player = {
+    id: getOrCreatePlayerId(),
+    name: cleanName,
+    tracked: true
+  };
+  localStorage.setItem("wastebin-player-name", cleanName);
+  if (els.playerLabel) {
+    els.playerLabel.textContent = `Player: ${cleanName}`;
+  }
+}
+
+function setupPlayerLogin() {
+  const savedName = localStorage.getItem("wastebin-player-name");
+  if (savedName) {
+    setPlayer(savedName);
+    return;
+  }
+
+  if (!isMobilePlayer()) {
+    state.player = {
+      id: "desktop",
+      name: "Desktop",
+      tracked: false
+    };
+    if (els.playerLabel) {
+      els.playerLabel.textContent = "";
+    }
+    return;
+  }
+
+  els.loginModal.hidden = false;
+  window.setTimeout(() => els.playerName?.focus(), 0);
+}
+
+async function submitScore() {
+  if (state.scoreSubmitted || !state.player?.tracked) return;
+
+  state.scoreSubmitted = true;
+  try {
+    await fetch("/api/state", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "score",
+        playerId: state.player.id,
+        name: state.player.name,
+        score: state.score,
+        correct: state.correct,
+        wrong: state.wrong
+      })
+    });
+  } catch (error) {
+    state.scoreSubmitted = false;
+    console.warn("Score could not be submitted", error);
+  }
+}
+
+async function syncGameControl() {
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) return;
+
+    const payload = await response.json();
+    const control = payload.control;
+    if (!control || control.status !== "running" || control.roundId === state.lastControlRoundId) {
+      return;
+    }
+
+    state.lastControlRoundId = control.roundId;
+    if (els.roundSize && control.roundSize) {
+      els.roundSize.value = String(control.roundSize);
+    }
+    startNewGame();
+  } catch (error) {
+    console.warn("Game control could not be synced", error);
+  }
 }
 
 function normalizeName(value) {
@@ -106,117 +192,6 @@ function buildRoundItems(dataset) {
 
   const roundSize = Number.parseInt(els.roundSize.value, 10);
   return shuffle(allItems).slice(0, Math.min(roundSize, allItems.length));
-}
-
-function loadLeaderboard() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(leaderboardKey) || "[]");
-    state.leaderboard = Array.isArray(saved) ? saved : [];
-  } catch (error) {
-    state.leaderboard = [];
-  }
-}
-
-function saveLeaderboard() {
-  localStorage.setItem(leaderboardKey, JSON.stringify(state.leaderboard));
-}
-
-function readGameControl() {
-  try {
-    return JSON.parse(localStorage.getItem(gameControlKey) || "{\"status\":\"waiting\"}");
-  } catch (error) {
-    return { status: "waiting" };
-  }
-}
-
-function renderLeaderboard() {
-  if (!els.leaderboardList) return;
-
-  const rows = [...state.leaderboard].sort((a, b) => b.bestScore - a.bestScore || b.lastScore - a.lastScore);
-  els.leaderboardList.replaceChildren();
-
-  if (rows.length === 0) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 4;
-    cell.textContent = "ยังไม่มีคะแนน";
-    row.append(cell);
-    els.leaderboardList.append(row);
-    return;
-  }
-
-  rows.forEach((entry) => {
-    const row = document.createElement("tr");
-    [entry.name, entry.lastScore, entry.bestScore, entry.rounds].forEach((value) => {
-      const cell = document.createElement("td");
-      cell.textContent = value;
-      row.append(cell);
-    });
-    els.leaderboardList.append(row);
-  });
-}
-
-function recordRoundScore() {
-  if (!state.currentUser || state.roundSaved) return;
-
-  const existing = state.leaderboard.find((entry) => entry.name === state.currentUser);
-  if (existing) {
-    existing.lastScore = state.score;
-    existing.bestScore = Math.max(existing.bestScore, state.score);
-    existing.rounds += 1;
-  } else {
-    state.leaderboard.push({
-      name: state.currentUser,
-      lastScore: state.score,
-      bestScore: state.score,
-      rounds: 1
-    });
-  }
-
-  state.roundSaved = true;
-  saveLeaderboard();
-  renderLeaderboard();
-}
-
-function updateTimerDisplay() {
-  if (els.timer) {
-    els.timer.textContent = state.timeLeft;
-  }
-  if (els.dashboardTimer) {
-    els.dashboardTimer.textContent = state.timeLeft;
-  }
-}
-
-function stopRoundTimer() {
-  if (!state.timerId) return;
-  window.clearInterval(state.timerId);
-  state.timerId = null;
-}
-
-function endRound(message, type = "correct") {
-  if (!state.roundActive && state.roundSaved) return;
-
-  state.roundActive = false;
-  stopRoundTimer();
-  cleanupPointerDrag();
-  stopMusic();
-  recordRoundScore();
-  renderWaste();
-  updateScoreboard();
-  setMessage(message, type);
-}
-
-function startRoundTimer() {
-  stopRoundTimer();
-  state.timeLeft = roundSeconds;
-  updateTimerDisplay();
-  state.timerId = window.setInterval(() => {
-    state.timeLeft = Math.max(0, state.timeLeft - 1);
-    updateTimerDisplay();
-    if (state.timeLeft === 0) {
-      endRound(`หมดเวลาแล้ว คะแนนรวม ${state.score} คะแนน`, "wrong");
-    }
-  }, 1000);
 }
 
 function ensureAudio() {
@@ -335,8 +310,10 @@ function updateScoreboard() {
   els.wrong.textContent = state.wrong;
   els.remaining.textContent = remaining;
 
-  if (remaining === 0 && state.roundItems.length > 0 && state.roundActive) {
-    endRound(`จบรอบแล้ว คะแนนรวม ${state.score} คะแนน`, "correct");
+  if (remaining === 0 && state.roundItems.length > 0) {
+    setMessage(`จบรอบแล้ว คะแนนรวม ${state.score} คะแนน`, "correct");
+    submitScore();
+    stopMusic();
   }
 }
 
@@ -352,23 +329,18 @@ function renderWaste() {
     node.dataset.categoryId = item.categoryId;
     node.classList.toggle("sorted", item.sorted);
     node.classList.toggle("selected", state.selectedId === item.id);
-    node.disabled = !state.roundActive;
-    node.draggable = !item.sorted && state.roundActive;
+    node.draggable = !item.sorted;
     image.src = item.path;
     image.alt = item.name;
     label.textContent = item.name;
 
     node.addEventListener("click", () => {
-      if (item.sorted || !state.roundActive) return;
+      if (item.sorted) return;
       state.selectedId = state.selectedId === item.id ? null : item.id;
       renderWaste();
     });
 
     node.addEventListener("dragstart", (event) => {
-      if (!state.roundActive) {
-        event.preventDefault();
-        return;
-      }
       event.dataTransfer.setData("text/plain", item.id);
       event.dataTransfer.effectAllowed = "move";
       state.selectedId = item.id;
@@ -384,7 +356,7 @@ function renderWaste() {
 }
 
 function beginPointerDrag(event, item, node) {
-  if (item.sorted || event.button > 0 || !state.roundActive) return;
+  if (item.sorted || event.button > 0) return;
   startMusic();
   requestLandscapeMode();
 
@@ -474,8 +446,6 @@ function flashBin(bin, className) {
 }
 
 function sortedItemById(itemId, categoryId, binNode) {
-  if (!state.roundActive) return;
-
   const item = state.roundItems.find((entry) => entry.id === itemId);
   if (!item || item.sorted) return;
 
@@ -513,7 +483,6 @@ function renderBins() {
     label.textContent = categoryDisplayName(category.name);
 
     node.addEventListener("click", () => {
-      if (!state.roundActive) return;
       if (!state.selectedId) {
         setMessage("เลือกขยะก่อน แล้วค่อยเลือกถัง", "neutral");
         return;
@@ -522,7 +491,6 @@ function renderBins() {
     });
 
     node.addEventListener("dragover", (event) => {
-      if (!state.roundActive) return;
       event.preventDefault();
       node.classList.add("drag-over");
     });
@@ -532,7 +500,6 @@ function renderBins() {
     });
 
     node.addEventListener("drop", (event) => {
-      if (!state.roundActive) return;
       event.preventDefault();
       node.classList.remove("drag-over");
       const itemId = event.dataTransfer.getData("text/plain");
@@ -543,71 +510,21 @@ function renderBins() {
   });
 }
 
-function startNewGame(roundSize = Number.parseInt(els.roundSize.value, 10)) {
-  if (!state.currentUser) return;
-
+function startNewGame() {
   cleanupPointerDrag();
   if (audio.context) {
     startMusic();
   }
-  stopRoundTimer();
-  els.roundSize.value = String(roundSize);
   state.roundItems = buildRoundItems(state.dataset);
   state.selectedId = null;
-  state.timeLeft = roundSeconds;
-  state.roundActive = true;
-  state.roundSaved = false;
+  state.scoreSubmitted = false;
   state.score = 0;
   state.correct = 0;
   state.wrong = 0;
   renderBins();
   renderWaste();
   updateScoreboard();
-  updateTimerDisplay();
-  startRoundTimer();
-  setMessage("ลากขยะไปใส่ถังได้เลยนะ");
-}
-
-function enterGame(playerName) {
-  const name = playerName.trim();
-  if (!name || !state.dataset) return;
-
-  state.currentUser = name;
-  if (els.currentPlayer) {
-    els.currentPlayer.textContent = name;
-  }
-  if (els.startScreen) {
-    els.startScreen.hidden = true;
-  }
-  if (els.gameShell) {
-    els.gameShell.hidden = false;
-  }
-  requestLandscapeMode();
-  renderBins();
-  renderWaste();
-  updateScoreboard();
-  updateTimerDisplay();
-  setMessage("รอ Dashboard กด Start Game");
-  applyGameControl(readGameControl());
-}
-
-function applyGameControl(control) {
-  if (!state.currentUser) return;
-
-  if (control.status === "running" && control.roundId !== state.lastControlRoundId) {
-    state.lastControlRoundId = control.roundId;
-    startNewGame(control.roundSize || 12);
-    return;
-  }
-
-  if (control.status === "stopped") {
-    state.lastControlRoundId = control.roundId;
-    if (state.roundActive) {
-      endRound(`เกมหยุดโดย Dashboard คะแนนรวม ${state.score} คะแนน`, "wrong");
-    } else {
-      setMessage("เกมหยุดอยู่ รอ Dashboard กด Start Game");
-    }
-  }
+  setMessage("ลากขยะไปใส่ถัง หรือแตะขยะแล้วแตะถังก็ได้");
 }
 
 function validateDataset(dataset) {
@@ -621,38 +538,61 @@ function validateDataset(dataset) {
   });
 }
 
+function openQrModal() {
+  if (!els.qrModal) return;
+  els.qrModal.hidden = false;
+  els.qrClose?.focus();
+}
+
+function closeQrModal() {
+  if (!els.qrModal || els.qrModal.hidden) return;
+  els.qrModal.hidden = true;
+  els.qrOpen?.focus();
+}
+
 async function boot() {
   try {
+    setupPlayerLogin();
     state.dataset = await loadDataset();
     validateDataset(state.dataset);
-    loadLeaderboard();
-    renderLeaderboard();
-    updateTimerDisplay();
-    setMessage("ใส่ชื่อเพื่อเริ่มเกม");
+    startNewGame();
+    syncGameControl();
+    window.setInterval(syncGameControl, 2000);
   } catch (error) {
     setMessage(error.message, "wrong");
     console.error(error);
   }
 }
 
-els.newGame?.addEventListener("click", () => {
+els.loginForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  setPlayer(els.playerName.value);
+  els.loginModal.hidden = true;
+  startMusic();
+  requestLandscapeMode();
+});
+els.newGame.addEventListener("click", () => {
   startMusic();
   requestLandscapeMode();
   startNewGame();
 });
-els.playerForm?.addEventListener("submit", (event) => {
-  event.preventDefault();
+els.roundSize.addEventListener("change", () => {
   startMusic();
-  enterGame(els.playerName.value);
+  requestLandscapeMode();
+  startNewGame();
 });
-window.addEventListener("storage", (event) => {
-  if (event.key === gameControlKey) {
-    applyGameControl(readGameControl());
+els.qrOpen?.addEventListener("click", openQrModal);
+els.qrClose?.addEventListener("click", closeQrModal);
+els.qrModal?.addEventListener("click", (event) => {
+  if (event.target === els.qrModal) {
+    closeQrModal();
   }
 });
-window.setInterval(() => {
-  applyGameControl(readGameControl());
-}, 1000);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeQrModal();
+  }
+});
 document.addEventListener("pointermove", movePointerDrag);
 document.addEventListener("pointerup", endPointerDrag);
 document.addEventListener("pointercancel", cleanupPointerDrag);

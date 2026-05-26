@@ -1,6 +1,3 @@
-const leaderboardKey = "wastebin-leaderboard";
-const gameControlKey = "wastebin-game-control";
-
 const els = {
   leaderboardList: document.querySelector("#leaderboard-list"),
   status: document.querySelector("#game-status"),
@@ -10,46 +7,45 @@ const els = {
   stop: document.querySelector("#dashboard-stop")
 };
 
-function readJson(key, fallback) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
-  } catch (error) {
-    return fallback;
+let lastState = {
+  leaderboard: [],
+  control: { status: "waiting" }
+};
+
+async function api(action, payload = {}) {
+  const options = action
+    ? {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ...payload })
+      }
+    : { cache: "no-store" };
+
+  const response = await fetch("/api/state", options);
+  if (!response.ok) {
+    throw new Error("Dashboard API request failed");
   }
+  return response.json();
 }
 
-function writeControl(status) {
-  const control = {
-    status,
-    roundId: Date.now(),
-    roundSize: Number.parseInt(els.roundSize.value, 10),
-    updatedAt: new Date().toISOString()
-  };
-  localStorage.setItem(gameControlKey, JSON.stringify(control));
-  renderStatus(control);
-}
-
-function renderStatus(control = readJson(gameControlKey, { status: "waiting" })) {
+function renderStatus(control = lastState.control) {
   const labels = {
     running: "Running",
     stopped: "Stopped",
     waiting: "Waiting"
   };
-  els.status.textContent = labels[control.status] || "Waiting";
+  els.status.textContent = labels[control?.status] || "Waiting";
 }
 
-function renderLeaderboard() {
-  const leaderboard = readJson(leaderboardKey, []);
-  const rows = Array.isArray(leaderboard)
-    ? [...leaderboard].sort((a, b) => b.bestScore - a.bestScore || b.lastScore - a.lastScore)
-    : [];
+function renderLeaderboard(leaderboard = lastState.leaderboard) {
+  const rows = Array.isArray(leaderboard) ? leaderboard : [];
 
   els.leaderboardList.replaceChildren();
   if (rows.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 4;
-    cell.textContent = "ยังไม่มีคะแนน";
+    cell.colSpan = 6;
+    cell.textContent = "No scores yet";
     row.append(cell);
     els.leaderboardList.append(row);
     return;
@@ -57,7 +53,14 @@ function renderLeaderboard() {
 
   rows.forEach((entry) => {
     const row = document.createElement("tr");
-    [entry.name, entry.lastScore, entry.bestScore, entry.rounds].forEach((value) => {
+    [
+      entry.name,
+      entry.lastScore,
+      entry.bestScore,
+      entry.correct ?? 0,
+      entry.wrong ?? 0,
+      entry.rounds
+    ].forEach((value) => {
       const cell = document.createElement("td");
       cell.textContent = value;
       row.append(cell);
@@ -66,22 +69,36 @@ function renderLeaderboard() {
   });
 }
 
-els.start.addEventListener("click", () => writeControl("running"));
-els.stop.addEventListener("click", () => writeControl("stopped"));
-els.clear.addEventListener("click", () => {
-  localStorage.removeItem(leaderboardKey);
-  renderLeaderboard();
+async function refresh() {
+  try {
+    lastState = await api();
+    renderStatus(lastState.control);
+    renderLeaderboard(lastState.leaderboard);
+  } catch (error) {
+    els.status.textContent = "Offline";
+    console.warn(error);
+  }
+}
+
+async function writeControl(status) {
+  lastState = await api("control", {
+    status,
+    roundSize: Number.parseInt(els.roundSize.value, 10)
+  });
+  renderStatus(lastState.control);
+  renderLeaderboard(lastState.leaderboard);
+}
+
+els.start.addEventListener("click", () => writeControl("running").catch(console.warn));
+els.stop.addEventListener("click", () => writeControl("stopped").catch(console.warn));
+els.clear.addEventListener("click", async () => {
+  try {
+    lastState = await api("clear");
+    renderLeaderboard(lastState.leaderboard);
+  } catch (error) {
+    console.warn(error);
+  }
 });
 
-window.addEventListener("storage", (event) => {
-  if (event.key === leaderboardKey) {
-    renderLeaderboard();
-  }
-  if (event.key === gameControlKey) {
-    renderStatus(readJson(gameControlKey, { status: "waiting" }));
-  }
-});
-
-window.setInterval(renderLeaderboard, 1000);
-renderStatus();
-renderLeaderboard();
+window.setInterval(refresh, 1000);
+refresh();
